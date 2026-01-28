@@ -50,7 +50,7 @@ class Table:
         once a threshold is reached.
 
         The query cache is updated on every search operation. When writing
-        data, the whole cache is discareded as the query results may have
+        data, the whole cache is discarded as the query results may have
         changed.
 
     .. admonition:: Customization
@@ -232,8 +232,9 @@ class Table:
         # Perform the search by applying the query to all documents
         docs = [doc for doc in self if cond(doc)]
 
-        # Update the query cache
-        self._query_cache[cond] = docs[:]
+        if cond.is_cacheable():
+            # Update the query cache
+            self._query_cache[cond] = docs[:]
 
         return docs
 
