@@ -107,7 +107,7 @@ Now let's implement that:
         def __init__(self, storage_cls):
             # Any middleware *has* to call the super constructor
             # with storage_cls
-            super(self).__init__(storage_cls)  # (1)
+            super().__init__(storage_cls)  # (1)
 
         def read(self):
             data = self.storage.read()
@@ -115,7 +115,7 @@ Now let's implement that:
             for table_name in data:
                 table_data = data[table_name]
 
-                for doc_id in table:
+                for doc_id in table_data:
                     item = table_data[doc_id]
 
                     if item == {}:
