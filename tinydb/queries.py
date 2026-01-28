@@ -18,7 +18,7 @@ False
 
 import re
 import sys
-from typing import Mapping, Tuple, Callable, Any, Union, List
+from typing import Mapping, Tuple, Callable, Any, Union, List, Optional
 
 from .utils import freeze
 
@@ -43,6 +43,10 @@ class QueryLike(Protocol):
     1. It must be callable, accepting a `Mapping` object and returning a
        boolean that indicates whether the value matches the query, and
     2. it must have a stable hash that will be used for query caching.
+
+    In addition, to mark a query as non-cacheable (e.g. if it involves
+    some remote lookup) it needs to have a method called ``is_cacheable``
+    that returns ``False``.
 
     This query protocol is used to make MyPy correctly support the query
     pattern that TinyDB uses.
@@ -71,16 +75,19 @@ class QueryInstance:
     instance can be used as a key in a dictionary.
     """
 
-    def __init__(self, test: Callable[[Mapping], bool], hashval: Tuple):
+    def __init__(self, test: Callable[[Mapping], bool], hashval: Optional[Tuple]):
         self._test = test
         self._hash = hashval
+
+    def is_cacheable(self) -> bool:
+        return self._hash is not None
 
     def __call__(self, value: Mapping) -> bool:
         """
         Evaluate the query to check if it matches a specified value.
 
         :param value: The value to check.
-        :return: Wether the value matchs this query.
+        :return: Whether the value matches this query.
         """
         return self._test(value)
 
@@ -105,19 +112,25 @@ class QueryInstance:
         # We use a frozenset for the hash as the AND operation is commutative
         # (a & b == b & a) and the frozenset does not consider the order of
         # elements
-        return QueryInstance(lambda value: self(value) and other(value),
-                             ('and', frozenset([self._hash, other._hash])))
+        if self.is_cacheable() and other.is_cacheable():
+            hashval = ('and', frozenset([self._hash, other._hash]))
+        else:
+            hashval = None
+        return QueryInstance(lambda value: self(value) and other(value), hashval)
 
     def __or__(self, other: 'QueryInstance') -> 'QueryInstance':
         # We use a frozenset for the hash as the OR operation is commutative
         # (a | b == b | a) and the frozenset does not consider the order of
         # elements
-        return QueryInstance(lambda value: self(value) or other(value),
-                             ('or', frozenset([self._hash, other._hash])))
+        if self.is_cacheable() and other.is_cacheable():
+            hashval = ('or', frozenset([self._hash, other._hash]))
+        else:
+            hashval = None
+        return QueryInstance(lambda value: self(value) or other(value), hashval)
 
     def __invert__(self) -> 'QueryInstance':
-        return QueryInstance(lambda value: not self(value),
-                             ('not', self._hash))
+        hashval = ('not', self._hash) if self.is_cacheable() else None
+        return QueryInstance(lambda value: not self(value), hashval)
 
 
 class Query(QueryInstance):
@@ -155,7 +168,7 @@ class Query(QueryInstance):
 
     def __init__(self) -> None:
         # The current path of fields to access when evaluating the object
-        self._path = ()  # type: Tuple[str, ...]
+        self._path: Tuple[Union[str, Callable], ...] = ()
 
         # Prevent empty queries to be evaluated
         def notest(_):
@@ -182,7 +195,7 @@ class Query(QueryInstance):
         query._path = self._path + (item,)
 
         # ... and update the query hash
-        query._hash = ('path', query._path)
+        query._hash = ('path', query._path) if self.is_cacheable() else None
 
         return query
 
@@ -218,7 +231,10 @@ class Query(QueryInstance):
             try:
                 # Resolve the path
                 for part in self._path:
-                    value = value[part]
+                    if isinstance(part, str):
+                        value = value[part]
+                    else:
+                        value = part(value)
             except (KeyError, TypeError):
                 return False
             else:
@@ -227,7 +243,7 @@ class Query(QueryInstance):
 
         return QueryInstance(
             lambda value: runner(value),
-            hashval
+            (hashval if self.is_cacheable() else None)
         )
 
     def __eq__(self, rhs: Any):
@@ -487,6 +503,21 @@ class Query(QueryInstance):
             ()
         )
 
+    def map(self, fn: Callable[[Any], Any]) -> 'Query':
+        """
+        Add a function to the query path. Similar to __getattr__ but for
+        arbitrary functions.
+        """
+        query = type(self)()
+
+        # Now we add the callable to the query path ...
+        query._path = self._path + (fn,)
+
+        # ... and kill the hash - callable objects can be mutable so it's
+        # harmful to cache their results.
+        query._hash = None
+
+        return query
 
 def where(key: str) -> Query:
     """

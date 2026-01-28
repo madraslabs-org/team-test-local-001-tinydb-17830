@@ -45,12 +45,19 @@ which fields to check. Searching for nested fields is just as easy:
 >>> db.search(User.birthday.year == 1990)
 
 Not all fields can be accessed this way if the field name is not a valid Python
-identifier. In this case, you can switch to array indexing notation:
+identifier. In this case, you can switch to dict access notation:
 
 >>> # This would be invalid Python syntax:
 >>> db.search(User.country-code == 'foo')
 >>> # Use this instead:
 >>> db.search(User['country-code'] == 'foo')
+
+In addition, you can use arbitrary transform function where a field would be,
+for example:
+
+>>> from unidecode import unidecode
+>>> db.search(User.name.map(unidecode) == 'Jose')
+>>> # will match 'José' etc.
 
 The second, traditional way of constructing queries is as follows:
 

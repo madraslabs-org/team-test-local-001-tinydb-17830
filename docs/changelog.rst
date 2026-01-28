@@ -7,10 +7,37 @@ Version Numbering
 TinyDB follows the SemVer versioning guidelines. For more information,
 see `semver.org <http://semver.org/>`_
 
+.. note:: When new methods are added to the ``Query`` API, this may
+          result in breaking existing code that uses the property syntax
+          to access document fields (e.g. ``Query().some.nested.field``)
+          where the field name is equal to the newly added query method.
+          Thus, breaking changes may occur in feature releases even though
+          they don't change the public API in a backwards-incompatible
+          manner.
+
+          To prevent this from happening, one can use the dict access
+          syntax (``Query()['some']['nested']['field']``) that will
+          not break even when new methods are added to the ``Query`` API.
+
 unreleased
 ^^^^^^^^^^
 
 - *nothing yet*
+
+v4.6.0 (2022-01-17)
+^^^^^^^^^^^^^^^^^^^
+
+- Feature: Add `map()` query operation to apply a transformation
+  to a document or field when evaluating a query
+  (see `pull request 445 <https://github.com/msiemens/tinydb/pull/445>`_).
+  **Note**: This may break code that queries for a field named ``map``
+  using the ``Query`` APIs property access syntax
+- Feature: Add support for `typing-extensions <https://pypi.org/project/typing-extensions/>`_
+  v4
+- Documentation: Fix a couple of typos in the documentation (see
+  `pull request 446 <https://github.com/msiemens/tinydb/pull/446>`_,
+  `pull request 449 <https://github.com/msiemens/tinydb/pull/449>`_ and
+  `pull request 453 <https://github.com/msiemens/tinydb/pull/453>`_)
 
 v4.5.2 (2021-09-23)
 ^^^^^^^^^^^^^^^^^^^
