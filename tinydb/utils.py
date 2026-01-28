@@ -52,7 +52,7 @@ class LRUCache(abc.MutableMapping, Generic[K, V]):
 
     def __init__(self, capacity=None):
         self.capacity = capacity
-        self.cache: OrderedDict[K, V] = OrderedDict()
+        self.cache = OrderedDict()  # type: OrderedDict[K, V]
 
     @property
     def lru(self) -> List[K]:
